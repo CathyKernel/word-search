@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Bible Word Arrange</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #f8f9fa;
+      color: #333;
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    h1 {
+      margin-top: 24px;
+      font-size: 2rem;
+      color: #4a6fa5;
+    }
+    .arrange-section {
+      margin-top: 30px;
+      text-align: center;
+    }
+    .arrange-word-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 28px;
+    }
+    .arrange-letters {
+      display: flex;
+      gap: 7px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 12px;
+    }
+    .arrange-letter {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 2.1em;
+      min-height: 2.1em;
+      font-size: 1.3em;
+      font-weight: 600;
+      background: #e6eefc;
+      border: 1.5px solid #b8c1ec;
+      border-radius: 6px;
+      cursor: grab;
+      user-select: none;
+      text-align: center;
+      transition: background 0.18s, border 0.18s;
+      position: relative;
+    }
+    .arrange-letter.selected {
+      background: #ffd54f;
+      color: #222;
+      border: 1.5px solid #ffd54f;
+      z-index: 2;
+    }
+    .arrange-letter.placed {
+      background: #a5d6a7;
+      color: #225522;
+      border: 1.5px solid #7cb342;
+    }
+    .arrange-letter.dragging {
+      opacity: 0.65;
+      border-style: dashed;
+      z-index: 99;
+    }
+    .arrange-target-row {
+      display: flex;
+      gap: 7px;
+      justify-content: center;
+      margin-bottom: 8px;
+      min-height: 2.5em;
+    }
+    .arrange-target {
+      min-width: 2.1em;
+      min-height: 2.1em;
+      background: #f0f4f8;
+      border: 1.5px dashed #b8c1ec;
+      border-radius: 6px;
+      font-size: 1.3em;
+      line-height: 2.1em;
+      text-align: center;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      vertical-align: middle;
+      transition: background 0.18s, border 0.18s;
+      position: relative;
+    }
+    .arrange-target.filled {
+      background: #ffd54f;
+      border-style: solid;
+      color: #222;
+    }
+    .arrange-target.drop-hover {
+      border: 1.5px solid #388e3c;
+      background: #f1f8e9;
+    }
+    .arrange-check {
+      padding: 5px 14px;
+      font-size: 1em;
+      background: #4a6fa5;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-left: 10px;
+      margin-top: 5px;
+    }
+    .arrange-result {
+      margin-top: 7px;
+      font-size: 1.06em;
+      font-weight: 600;
+    }
+    @media (max-width: 600px) {
+      .arrange-letter, .arrange-target {
+        min-width: 1.5em;
+        min-height: 1.5em;
+        font-size: 1em;
+        line-height: 1.5em;
+      }
+      .arrange-target-row, .arrange-letters {
+        gap: 4px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Bible Word Arrange</h1>
+  <div class="arrange-section">
+    <h2>Arrange the Bible Words</h2>
+    <div id="arrange-words"></div>
+  </div>
+  <script>
+    // --- ARRANGE LOGIC (DRAGGABLE) ---
+    const arrangeWordList = [
+      "Covenant",
+      "Glory",
+      "Salvation",
+      "Temptation",
+      "Faithful",
+      "Redeem",
+      "Sacrifice",
+      "Repent",
+      "Holy",
+      "Messiah"
+    ];
+
+    function shuffleArray(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    function createArrangeGame() {
+      const container = document.getElementById('arrange-words');
+      container.innerHTML = '';
+      arrangeWordList.forEach((word, idx) => {
+        const letters = word.split('');
+        // Shuffle all but the first letter
+        const first = letters[0];
+        const rest = shuffleArray(letters.slice(1));
+        const shuffled = [first, ...rest];
+
+        const box = document.createElement('div');
+        box.className = 'arrange-word-box';
+        box.dataset.wordIndex = idx;
+
+        // Letter tiles
+        const letterRow = document.createElement('div');
+        letterRow.className = 'arrange-letters';
+        shuffled.forEach((ltr, lidx) => {
+          const span = document.createElement('span');
+          span.className = 'arrange-letter';
+          span.textContent = ltr;
+          span.setAttribute('draggable', 'true');
+          span.dataset.letter = ltr;
+          span.dataset.letterIdx = lidx;
+          span.dataset.wordIndex = idx;
+          span.id = `al-${idx}-${lidx}`;
+          letterRow.appendChild(span);
+        });
+
+        // Target slots
+        const targetRow = document.createElement('div');
+        targetRow.className = 'arrange-target-row';
+        for (let i = 0; i < word.length; i++) {
+          const slot = document.createElement('span');
+          slot.className = 'arrange-target';
+          slot.dataset.slotIdx = i;
+          slot.dataset.wordIndex = idx;
+          slot.id = `at-${idx}-${i}`;
+          targetRow.appendChild(slot);
+        }
+
+        // Check button and result
+        const checkBtn = document.createElement('button');
+        checkBtn.className = 'arrange-check';
+        checkBtn.textContent = 'Check';
+        checkBtn.onclick = () => checkArrangeWord(idx);
+
+        const resultDiv = document.createElement('div');
+        resultDiv.className = 'arrange-result';
+        resultDiv.id = `arrange-result-${idx}`;
+
+        box.appendChild(letterRow);
+        box.appendChild(targetRow);
+        box.appendChild(checkBtn);
+        box.appendChild(resultDiv);
+
+        container.appendChild(box);
+
+        // Initialize drag-n-drop for this word
+        setupDnD(letterRow, targetRow, word, idx);
+      });
+    }
+
+    function setupDnD(letterRow, targetRow, word, wordIndex) {
+      // Drag events on letter tiles
+      letterRow.querySelectorAll('.arrange-letter').forEach(letterEl => {
+        letterEl.addEventListener('dragstart', e => {
+          e.dataTransfer.setData('text/plain', letterEl.id);
+          setTimeout(() => letterEl.classList.add('dragging'), 0);
+        });
+        letterEl.addEventListener('dragend', e => {
+          letterEl.classList.remove('dragging');
+        });
+      });
+
+      // Drag events on target slots
+      targetRow.querySelectorAll('.arrange-target').forEach(slotEl => {
+        slotEl.addEventListener('dragover', e => {
+          e.preventDefault();
+          slotEl.classList.add('drop-hover');
+        });
+        slotEl.addEventListener('dragleave', e => {
+          slotEl.classList.remove('drop-hover');
+        });
+        slotEl.addEventListener('drop', e => {
+          e.preventDefault();
+          slotEl.classList.remove('drop-hover');
+          const letterId = e.dataTransfer.getData('text/plain');
+          const letterEl = document.getElementById(letterId);
+          if (!letterEl) return;
+          // If slot already filled, swap
+          if (slotEl.firstChild) {
+            // Swap: 
+            const oldLetter = slotEl.firstChild;
+            // Find a place in letterRow to place the old letter
+            letterRow.appendChild(oldLetter);
+          }
+          // Move dragged letter to slot
+          slotEl.innerHTML = '';
+          slotEl.appendChild(letterEl);
+        });
+      });
+
+      // Allow moving letter back to letter row
+      letterRow.addEventListener('dragover', e => {
+        e.preventDefault();
+        letterRow.classList.add('drop-hover');
+      });
+      letterRow.addEventListener('dragleave', e => {
+        letterRow.classList.remove('drop-hover');
+      });
+      letterRow.addEventListener('drop', e => {
+        e.preventDefault();
+        letterRow.classList.remove('drop-hover');
+        const letterId = e.dataTransfer.getData('text/plain');
+        const letterEl = document.getElementById(letterId);
+        if (!letterEl) return;
+        letterRow.appendChild(letterEl);
+      });
+    }
+
+    function checkArrangeWord(wordIndex) {
+      // For this word, check if slots are filled in correct order
+      const box = document.querySelector(`.arrange-word-box[data-word-index="${wordIndex}"]`);
+      const targetRow = box.querySelector('.arrange-target-row');
+      const slots = Array.from(targetRow.children);
+      let formed = '';
+      for (let i = 0; i < slots.length; i++) {
+        const child = slots[i].firstChild;
+        if (!child || !child.classList.contains('arrange-letter')) {
+          formed = '';
+          break;
+        }
+        formed += child.textContent;
+      }
+      const word = arrangeWordList[wordIndex];
+      const resultDiv = document.getElementById(`arrange-result-${wordIndex}`);
+      if (formed === word) {
+        resultDiv.textContent = "✅ Correct!";
+        resultDiv.style.color = "#388e3c";
+      } else {
+        resultDiv.textContent = "❌ Try again!";
+        resultDiv.style.color = "#c62828";
+      }
+    }
+
+    createArrangeGame();
+  </script>
+</body>
+</html>
