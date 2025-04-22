@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Bible Word Search Game</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      margin: 0;
+      background: #f7f6f3;
+      color: #3d2c14;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 520px;
+      margin: 2rem auto;
+      background: #fffbe7;
+      border-radius: 10px;
+      box-shadow: 0 2px 12px #e3d9c6;
+      padding: 1.5rem;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 0.5rem;
+    }
+    .instructions {
+      text-align: center;
+      font-size: 1em;
+      margin-bottom: 1rem;
+      color: #795548;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(10, 2.2em);
+      grid-template-rows: repeat(10, 2.2em);
+      gap: 0.2em;
+      justify-content: center;
+      margin-bottom: 1.2em;
+      user-select: none;
+    }
+    .cell {
+      background: #fff;
+      border: 1px solid #e3d9c6;
+      border-radius: 0.3em;
+      text-align: center;
+      font-size: 1.25em;
+      line-height: 2.2em;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+    }
+    .cell.selected {
+      background: #ffe082;
+      color: #b26500;
+      font-weight: bold;
+    }
+    .cell.found {
+      background: #c5e1a5;
+      color: #204100;
+      font-weight: bold;
+    }
+    .words-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6em;
+      justify-content: center;
+      margin-bottom: 1em;
+    }
+    .word {
+      background: #fff9c4;
+      border: 1px solid #e3d9c6;
+      border-radius: 8px;
+      padding: 0.4em 0.9em;
+      font-size: 1em;
+      margin-bottom: 0.2em;
+      cursor: pointer;
+      transition: background 0.2s;
+      user-select: none;
+    }
+    .word.selected {
+      background: #ffe082;
+      border-color: #b26500;
+      font-weight: bold;
+    }
+    .word.found {
+      background: #c5e1a5;
+      color: #204100;
+      border-color: #91c788;
+      font-weight: bold;
+      text-decoration: line-through;
+    }
+    .feedback {
+      text-align: center;
+      font-size: 1.1em;
+      margin-bottom: 1em;
+      min-height: 1.5em;
+    }
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 1.2em;
+      margin-top: 0.8em;
+    }
+    button {
+      background: #ffe082;
+      color: #6d4c10;
+      border: none;
+      border-radius: 6px;
+      padding: 0.6em 1.2em;
+      font-size: 1em;
+      cursor: pointer;
+      font-weight: bold;
+      box-shadow: 0 2px 6px #e3d9c6;
+      transition: background 0.2s, color 0.2s;
+    }
+    button:active {
+      background: #ffd54f;
+      color: #b26500;
+    }
+    @media (max-width: 650px) {
+      .container {
+        max-width: 99vw;
+        padding: 0.7rem;
+      }
+      .grid {
+        grid-template-columns: repeat(10, 1.7em);
+        grid-template-rows: repeat(10, 1.7em);
+      }
+      .cell {
+        font-size: 1em;
+      }
+      .words-list {
+        font-size: 0.95em;
+      }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>Bible Word Search</h1>
+  <div class="instructions">
+    <strong>Instructions:</strong> <br>
+    Click a word below, then <b>find it in the grid by clicking its first and last letter</b>.<br>
+    The letters are connected in a straight line (horizontally, vertically, or diagonally).
+  </div>
+  <div id="grid" class="grid"></div>
+  <div class="words-list" id="words-list"></div>
+  <div class="feedback" id="feedback"></div>
+  <div class="controls">
+    <button id="shuffleBtn">Shuffle Words</button>
+    <button id="resetBtn">Reset</button>
+  </div>
+</div>
+
+<script>
+  // 10 Common (non-name/place) biblical words
+  const WORDS = [
+    'COVENANT',
+    'MIRACLE',
+    'PARABLE',
+    'DISCIPLE',
+    'TRUTH',
+    'SABBATH',
+    'FORGIVE',
+    'REJOICE',
+    'TEMPLE',
+    'PRAISE'
+  ];
+
+  const SIZE = 10;
+  let grid = [];
+  let placedWords = [];
+  let foundWords = {};
+  let selectedWord = null;
+  let selecting = false;
+  let selectStart = null;
+  let selectEnd = null;
+  let highlightCells = [];
+
+  function getRandomInt(a, b) {
+    return Math.floor(Math.random() * (b - a)) + a;
+  }
+
+  // Directions: right, down, left, up, diagonals
+  const DIRECTIONS = [
+    { dr: 0, dc: 1 },   // right
+    { dr: 1, dc: 0 },   // down
+    { dr: 0, dc: -1 },  // left
+    { dr: -1, dc: 0 },  // up
+    { dr: 1, dc: 1 },   // down-right
+    { dr: 1, dc: -1 },  // down-left
+    { dr: -1, dc: 1 },  // up-right
+    { dr: -1, dc: -1 }  // up-left
+  ];
+
+  function shuffleArray(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = getRandomInt(0, i + 1);
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function emptyGrid() {
+    return Array.from({length: SIZE}, () =>
+      Array.from({length: SIZE}, () => ({ letter: randomLetter(), word: null, idx: null }))
+    );
+  }
+
+  function randomLetter() {
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    return alphabet[getRandomInt(0, alphabet.length)];
+  }
+
+  function placeWord(grid, word, mark) {
+    let tries = 0;
+    word = word.toUpperCase();
+    while (tries < 100) {
+      const dir = DIRECTIONS[getRandomInt(0, DIRECTIONS.length)];
+      let r = getRandomInt(0, SIZE), c = getRandomInt(0, SIZE);
+      // Check if it fits
+      let fit = true;
+      for (let i = 0; i < word.length; i++) {
+        let nr = r + dir.dr * i, nc = c + dir.dc * i;
+        if (nr < 0 || nr >= SIZE || nc < 0 || nc >= SIZE) { fit = false; break; }
+        let cell = grid[nr][nc];
+        if (cell.word && cell.letter !== word[i]) { fit = false; break; }
+      }
+      if (fit) {
+        // Place word
+        for (let i = 0; i < word.length; i++) {
+          let nr = r + dir.dr * i, nc = c + dir.dc * i;
+          grid[nr][nc] = { letter: word[i], word: mark, idx: i };
+        }
+        // Return positions
+        return Array.from({ length: word.length }, (_, i) => ({
+          r: r + dir.dr * i,
+          c: c + dir.dc * i
+        }));
+      }
+      tries++;
+    }
+    return null;
+  }
+
+  function generateGrid() {
+    grid = emptyGrid();
+    placedWords = [];
+    foundWords = {};
+    let shuffled = shuffleArray([...WORDS]);
+    for (const word of shuffled) {
+      let positions = placeWord(grid, word, word);
+      if (positions) {
+        placedWords.push({ word, positions });
+      }
+    }
+    // Fill remaining cells with random letters
+    for (let r = 0; r < SIZE; r++) {
+      for (let c = 0; c < SIZE; c++) {
+        if (!grid[r][c].letter) grid[r][c].letter = randomLetter();
+      }
+    }
+  }
+
+  function renderGrid() {
+    const gridDiv = document.getElementById('grid');
+    gridDiv.innerHTML = '';
+    for (let r = 0; r < SIZE; r++) {
+      for (let c = 0; c < SIZE; c++) {
+        const idx = `${r},${c}`;
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.id = 'cell-' + idx;
+        cell.textContent = grid[r][c].letter;
+        cell.dataset.r = r;
+        cell.dataset.c = c;
+        if (grid[r][c].found) cell.classList.add('found');
+        if (highlightCells.some(sel => sel.r == r && sel.c == c)) cell.classList.add('selected');
+        cell.addEventListener('click', onCellClick);
+        gridDiv.appendChild(cell);
+      }
+    }
+  }
+
+  function renderWords() {
+    const wordsDiv = document.getElementById('words-list');
+    wordsDiv.innerHTML = '';
+    for (const word of WORDS) {
+      const div = document.createElement('div');
+      div.className = 'word';
+      div.textContent = word;
+      if (selectedWord === word && !foundWords[word]) div.classList.add('selected');
+      if (foundWords[word]) div.classList.add('found');
+      div.addEventListener('click', () => selectWord(word));
+      wordsDiv.appendChild(div);
+    }
+  }
+
+  function renderFeedback(msg = '') {
+    document.getElementById('feedback').textContent = msg;
+  }
+
+  function selectWord(word) {
+    if (foundWords[word]) return;
+    selectedWord = word;
+    selecting = true;
+    selectStart = null;
+    selectEnd = null;
+    highlightCells = [];
+    renderWords();
+    renderGrid();
+    renderFeedback(`Now find: "${word}" (click first and last letter in the grid)`);
+  }
+
+  function onCellClick(e) {
+    if (!selecting || !selectedWord) return;
+    const r = +e.currentTarget.dataset.r;
+    const c = +e.currentTarget.dataset.c;
+    if (!selectStart) {
+      selectStart = { r, c };
+      highlightCells = [selectStart];
+      renderGrid();
+      return;
+    } else if (!selectEnd && !(selectStart.r === r && selectStart.c === c)) {
+      selectEnd = { r, c };
+      // Check if selection is a straight line
+      let dr = selectEnd.r - selectStart.r;
+      let dc = selectEnd.c - selectStart.c;
+      const len = Math.max(Math.abs(dr), Math.abs(dc)) + 1;
+      if (len !== selectedWord.length) {
+        renderFeedback('❌ Not the right length for this word.');
+        resetSelectionDelay();
+        return;
+      }
+      // Normalize direction
+      if (dr !== 0) dr = dr / Math.abs(dr);
+      if (dc !== 0) dc = dc / Math.abs(dc);
+      // Build path
+      const path = [];
+      let cr = selectStart.r, cc = selectStart.c;
+      for (let i = 0; i < selectedWord.length; i++) {
+        path.push({ r: cr, c: cc });
+        cr += dr;
+        cc += dc;
+      }
+      // Check if all in bounds and straight line
+      if (
+        (Math.abs(selectEnd.r - selectStart.r) !== 0 && Math.abs(selectEnd.c - selectStart.c) !== 0 &&
+        Math.abs(selectEnd.r - selectStart.r) !== Math.abs(selectEnd.c - selectStart.c)) ||
+        path.some(pos => pos.r < 0 || pos.c < 0 || pos.r >= SIZE || pos.c >= SIZE)
+      ) {
+        renderFeedback('❌ Must be a straight line (horizontal, vertical, or diagonal).');
+        resetSelectionDelay();
+        return;
+      }
+      highlightCells = path;
+      renderGrid();
+      // Check if word matches
+      let guess = '';
+      for (const pos of path) {
+        guess += grid[pos.r][pos.c].letter;
+      }
+      if (guess === selectedWord) {
+        // Correct!
+        foundWords[selectedWord] = true;
+        for (const pos of path) {
+          grid[pos.r][pos.c].found = true;
+        }
+        renderFeedback(`✅ Correct! You found "${selectedWord}"`);
+        selectedWord = null;
+        selecting = false;
+        highlightCells = [];
+        renderWords();
+        renderGrid();
+        if (Object.keys(foundWords).length === WORDS.length) {
+          setTimeout(() => {
+            renderFeedback("🎉 Congratulations! You found all the words!");
+          }, 600);
+        }
+      } else {
+        renderFeedback('❌ Try again! That is not the correct word.');
+        resetSelectionDelay();
+      }
+    }
+  }
+
+  function resetSelectionDelay() {
+    setTimeout(() => {
+      selectStart = null;
+      selectEnd = null;
+      highlightCells = [];
+      renderGrid();
+      if (selectedWord) {
+        renderFeedback(`Now find: "${selectedWord}" (click first and last letter in the grid)`);
+      }
+    }, 1100);
+  }
+
+  function shuffleAndReset() {
+    // Shuffle words and grid
+    WORDS.sort(() => Math.random() - 0.5);
+    generateGrid();
+    selectedWord = null;
+    selecting = false;
+    selectStart = null;
+    selectEnd = null;
+    highlightCells = [];
+    renderGrid();
+    renderWords();
+    renderFeedback('Click a word below, then find it in the grid by clicking its first and last letter.');
+  }
+
+  function resetGame() {
+    generateGrid();
+    selectedWord = null;
+    selecting = false;
+    selectStart = null;
+    selectEnd = null;
+    highlightCells = [];
+    renderGrid();
+    renderWords();
+    renderFeedback('Click a word below, then find it in the grid by clicking its first and last letter.');
+  }
+
+  // Initial setup
+  window.onload = function() {
+    generateGrid();
+    renderGrid();
+    renderWords();
+    renderFeedback('Click a word below, then find it in the grid by clicking its first and last letter.');
+    document.getElementById('shuffleBtn').onclick = shuffleAndReset;
+    document.getElementById('resetBtn').onclick = resetGame;
+  };
+</script>
+</body>
+</html>
